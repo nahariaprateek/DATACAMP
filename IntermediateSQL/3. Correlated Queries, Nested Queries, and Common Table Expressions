@@ -1,0 +1,623 @@
+————
+3)
+Correlated Queries, Nested Query, & Common Table Expressions
+
+
+Correlated are the special kind of subquery that use values from the outer query in order to generate the final results.
+
+The subquery is re-executed each time a new row 
+
+Re Run for every row generated in the final data set 
+
+used for advanced joining, filtering and evaluating data
+
+
+Simple example
+
+The query before executed using SELECT, FROM & WHERE
+
+but it can also be created using correlated subquery 
+
+
+
+Simple vs correlated subqueries 
+=========================
+
+ 
+￼
+
+What is the avg no of goals scored in each country?
+
+ SELECT
+	c.name AS country,
+	AVG(m.home_goal + m.away_goal) AS avg_goals
+FROM country AS c
+LEFT JOIN match AS m
+ON c.id = m.country_id
+GROUP BY country;
+
+
+
+What is the avg no of goals scored in each country?
+
+SELECT
+c.name AS country,
+(SELECT 
+	AVG(home_goal + away_goal)
+	FROM match AS m
+	WHERE m.country_id = c.id)
+		AS avg_goals
+FROM country AS c
+GROUP BY country;
+
+
+
+LETS PRACTICE
+—————————
+
+
+SELECT 
+    -- Select country ID, date, home, and away goals from match
+    main.country_id,
+    main.date,
+    main.home_goal, 
+    main.away_goal
+FROM match AS main
+WHERE 
+    -- Filter the main query by the subquery
+    (home_goal + away_goal) > 
+        (SELECT AVG((sub.home_goal + sub.away_goal) * 3)
+         FROM match AS sub
+         -- Join the main query to the subquery in WHERE
+         WHERE main.country_id = sub.country_id);
+
+
+
+
+
+SELECT 
+    -- Select country ID, date, home, and away goals from match
+    main.country_id,
+    main.date,
+    main.home_goal,
+    main.away_goal
+FROM match AS main
+WHERE 
+    -- Filter for matches with the highest number of goals scored
+    (home_goal + away_goal) = 
+        (SELECT MAX(sub.home_goal + sub.away_goal)
+         FROM match AS sub
+         WHERE main.country_id = sub.country_id
+               AND main.season = sub.season);
+
+
+
+
+
+
+Nested SubQueries 
+———————————————
+subqueries  nested inside other subqueries 
+
+perform multiple layers of transformation 
+
+
+Question 
+How much did each country’s avg differ from the overall average?
+
+A Subquery
+
+
+￼
+
+
+
+Nested subqueries can be correlated or uncorrelated
+	or a combination of the two
+	Can ref info from the outer subquery or main query 
+
+Correlated nested subquery 
+——————————————
+
+
+What is the each country’s average goals scored in he 2011/2012 season ?
+
+SELECT 
+	c.name AS country,
+(SELECT AVG(home_goal + away_goal)
+	FROM match AS m 
+	WHERE m.country_id = c.id
+	AND id IN(
+	SELECT id 
+	FROM match 
+	WHERE season = ‘2011/2012’)) AS avg_goals
+FROM country AS c
+GROUP BY country;
+
+
+LETS PRACTICE :-
+—————————
+
+SELECT 
+    -- Select the season and max goals scored in a match
+    season,
+    MAX(home_goal + away_goal) AS max_goals,
+    -- Select the overall max goals scored in a match
+   (SELECT MAX(home_goal + away_goal) FROM match) AS overall_max_goals,
+    -- Select the max number of goals scored in any match in July
+   (SELECT MAX(home_goal + away_goal) 
+        FROM match
+        WHERE id IN (
+              SELECT id FROM match WHERE EXTRACT(MONTH FROM date) = 07)) AS july_max_goals
+FROM match
+GROUP BY season;
+
+
+
+
+
+-- Select matches where a team scored 5+ goals
+SELECT
+    country_id,
+    season,
+    id
+FROM match
+WHERE home_goal >=5 OR away_goal >=5;
+
+
+
+-- Count match ids
+SELECT
+    country_id,
+    season,
+    COUNT(id) AS matches
+-- Set up and alias the subquery
+FROM (
+    SELECT
+        country_id,
+        season,
+        id
+    FROM match
+    WHERE home_goal >= 5 OR away_goal >= 5) 
+    AS subquery
+-- Group by country_id and season
+GROUP BY country_id, season;
+
+
+
+SELECT
+  c.name AS country,
+  AVG(c.id) AS avg_seasonal_high_scores
+FROM country AS c
+-- Left join outer_s to country
+LEFT JOIN (
+  SELECT country_id, season,
+         COUNT(id) AS matches
+  FROM (
+    SELECT country_id, season, id
+  FROM match
+  WHERE home_goal >= 5 OR away_goal >= 5) AS inner_s
+  GROUP BY country_id, season) AS outer_s
+ON c.id = outer_s.country_id
+GROUP BY country;
+
+
+
+———*————*—————*————*————*———*	
+
+
+Common Table Expressions
+	-Data Manipulation in SQL
+
+
+Query complexity increases quickly 
+	Info can difficult to read 
+
+For readability - common table expression comes into action 
+
+CTE - common table expressions 
+
+Table declared before the main query 
+
+setting up CTE’s 
+Named and referenced later in FROM statement
+
+
+
+WITH cte AS ( 
+	SELECT col1, col2
+	FROM table)
+SELECT 	
+	AVG(col1) AS avg_col
+FROM cte;
+
+
+
+Lets take a query from before 
+
+￼
+
+
+SELECT 
+	c.name AS country,
+	COUNT(s.id) AS matches
+FROM country AS c
+INNER JOIN (
+	SELECT country_id, id
+	FROM match 
+WHERE (home_goal + away_goal) >= 10) AS s 
+ON c.id = s.country_id
+GROUP BY country;
+
+The query you see here uses a subquery, s, in the FROM statement to generate a list of country id’s and match ID’s that meet a certain criteria — specifically , we only wanted matches with 10 or more goals scored in total 
+
+
+￼
+
+
+
+Now using CTE 
+
+1. take the query from the FROM clause.
+        1. (
+        2. SELECT country_id, id 
+        3. FROM match
+        4. WHERE (home_goal + away_goal) > =10
+2. Place it at the beginning 
+    1. Declare it with the syntax with 
+    2. followed by the CTE name
+    3. AS below 
+        1. WITH s AS (
+        2. SELECT country_id, id 
+        3. FROM match
+        4. WHERE (home_goal + away_goal) > =10
+
+Its now a common table expression
+
+  Now performing this on the whole query as 
+
+WITH s AS (
+	SELECT country_id, id
+	FROM match
+	WHERE (home_goal + away_goal) >=10
+	)
+SELECT
+c.name AS country,
+COUNT(s.id) AS matches
+FROM country AS c
+INNER JOIN s
+on c.id = s.country_id
+GROUP BY country;
+
+￼
+
+
+
+Earlier it was
+SELECT 
+	c.name AS country,
+	COUNT(s.id) AS matches
+FROM country AS c
+INNER JOIN (
+		SELECT country_id, id
+	FROM match 
+WHERE (home_goal + away_goal) >= 10) AS s 
+ON c.id = s.country_id
+GROUP BY country;
+
+
+
+
+
+Multiple SubQueries - that we need to return in CTE
+
+then
+
+WITH s1 AS (
+	SELECT country_id, id 
+	FROM match
+	WHERE (home_goal + away_goal) >= 10),
+s2 AS (
+	SELECT country_id, id
+	FROM match
+	WHERE (home_goal + away_goal) <=1)
+
+SELECT 
+	c.name AS country,
+	COUNT(s1.id) AS high_scores,
+	COUNT(s2.id) AS low_scores,
+FROM country AS c
+INNER JOIN s1
+ON c.id = s1.country_id
+INNER JOIN s2
+ON c.id = s1.country_id
+GROUP BY country;
+
+
+Components - New Subquery, New COL, New Join
+
+
+WHY use CTEs?
+
+1. Runs Once - then stored in memory 
+    1. Improves better speed (query performance).
+2. Improving organisation of queries
+3. Referencing Other CTEs
+4. Referencing itself (SELF JOIN) -> Recursive CTE (ADVANCED APPLICATION)
+5. 
+
+LETS Practice 
+
+-- Set up your CTE
+WITH match_list AS (
+    SELECT 
+        country_id, 
+        id
+    FROM match
+    WHERE (home_goal + away_goal) >= 10)
+-- Select league and count of matches from the CTE
+SELECT
+    l.name AS league,
+    COUNT(match_list.id) AS matches
+FROM league AS l
+-- Join the CTE to the league table
+LEFT JOIN match_list ON l.id = match_list.country_id
+GROUP BY l.name;
+
+
+Before 
+SELECT
+  c.name AS country,
+  COUNT(sub.id) AS matches
+FROM country AS c
+INNER JOIN (
+  SELECT country_id, id 
+  FROM match
+  WHERE (home_goal + away_goal) >= 10) AS sub
+ON c.id = sub.country_id
+GROUP BY country;
+
+
+
+
+——————————————
+
+WITH match_list AS 
+    (   SELECT 
+      l.name AS league, 
+      m.date, 
+      m.home_goal, 
+      m.away_goal,
+       (m.home_goal + m.away_goal) AS total_goals
+    FROM match AS m
+    LEFT JOIN league as l ON m.country_id = l.id)
+SELECT league, date, home_goal, away_goal
+FROM match_list
+WHERE total_goals >= 10;
+
+
+
+
+-- Set up your CTE
+WITH match_list AS (
+    SELECT 
+      country_id,
+       (home_goal + away_goal) AS goals
+    FROM match
+    -- Create a list of match IDs to filter data in the CTE
+    WHERE id IN (
+       SELECT id
+       FROM match
+       WHERE season = '2013/2014' AND EXTRACT(MONTH FROM date) = 08))
+-- Select the league name and average of goals in the CTE
+SELECT 
+  l.name,
+    AVG(match_list.goals)
+FROM league AS l
+-- Join the CTE onto the league table
+LEFT JOIN match_list ON l.id = match_list.country_id
+GROUP BY l.name;
+
+
+
+
+
+DECIDING on techniques to use
+
+
+JOINs - allows you to directly combine from 2 or more tables  
+are mostly listed to simple operations & aggregations 
+
+
+Correlated subqueries - allows you to combine info between a subquery & a table or another subquery 
+avoid limits of joins
+they take long time to process 
+
+
+Multiple/nested subqueries - when data required multi step transformation 
+improves accuracy and reproducibility 
+
+
+CTE - allow you to organise sequentially 
+	one at a time is execution 
+can reference other CTE
+
+
+Which to use?
+
+depends on your database/question
+
+Best approach is :-
+1. use and reuse your queries
+2. generate clear and accurate results
+
+ 
+Different use cases
+—————————
+JOINS - universally imp - with more than one table 
+2+ tables (what is the total sales per employee)
+
+Correlated Subqueries  - great for matching data from diff columns in more tables
+Who does each employee report to in a company?
+
+
+Multiple/Nested Subqueries
+Answering questions - what is the avg deal size closed by each sales representatives in the quarter.
+
+CTE - good for comparing large chunk of different information 
+ for example when we need summary table.
+How did the marketing, sales, growth & engineering teams perform on key metrics?
+
+
+
+LETS Practice
+
+SELECT 
+    m.id, 
+    t.team_long_name AS hometeam
+-- Left join team to match
+FROM match AS m
+LEFT JOIN team as t
+ON m.hometeam_id = team_api_id;
+
+
+
+
+
+SELECT
+  m.date,
+    hometeam, 
+    awayteam,
+    m.home_goal,
+    m.away_goal
+FROM match AS m
+LEFT JOIN 
+( SELECT match.id, team.team_long_name AS hometeam
+  FROM match
+  LEFT JOIN team
+  ON match.hometeam_id = team.team_api_id) AS home
+
+ON home.id = m.id
+LEFT JOIN 
+( SELECT match.id, team.team_long_name AS awayteam
+  FROM match
+  LEFT JOIN team
+  -- Get the away team ID in the subquery
+  ON match.awayteam_id = team.team_api_id) AS away
+ON away.id = m.id;
+
+
+
+
+ Correlated Subquery-
+SELECT
+    m.date,
+   (SELECT team_long_name
+    FROM team AS t
+    -- Connect the team to the match table
+    WHERE t.team_api_id = m.hometeam_id) AS hometeam
+FROM match AS m;
+
+
+
+SELECT
+    m.date,
+    (SELECT team_long_name
+     FROM team AS t
+     WHERE t.team_api_id = m.hometeam_id) AS hometeam,
+    -- Connect the team to the match table
+    (SELECT team_long_name
+     FROM team AS t
+     WHERE t.team_api_id = m.awayteam_id) AS awayteam,
+    -- Select home and away goals
+     home_goal,
+     away_goal
+FROM match AS m;
+
+
+
+
+
+
+CTE——
+
+SELECT 
+    m.id, 
+    t.team_long_name AS hometeam
+FROM match AS m
+LEFT JOIN team AS t 
+ON m.hometeam_id = t.team_api_id; 
+
+
+-- Declare the home CTE
+WITH home AS (
+    SELECT m.id, t.team_long_name AS hometeam
+    FROM match AS m
+    LEFT JOIN team AS t 
+    ON m.hometeam_id = t.team_api_id)
+-- Select everything from home
+SELECT *
+FROM home;
+
+
+
+
+WITH home AS (
+  SELECT m.id, m.date, 
+       t.team_long_name AS hometeam, m.home_goal
+  FROM match AS m
+  LEFT JOIN team AS t 
+  ON m.hometeam_id = t.team_api_id),
+-- Declare and set up the away CTE
+away AS (
+  SELECT m.id, m.date, 
+       t.team_long_name AS awayteam, m.away_goal
+  FROM match AS m
+  LEFT JOIN team AS t 
+  ON m.awayteam_id = t.team_api_id)
+-- Select date, home_goal, and away_goal
+SELECT 
+  home.date,
+    home.hometeam,
+    away.awayteam,
+    home.home_goal,
+    away.away_goal
+-- Join away and home on the id column
+FROM home
+INNER JOIN away
+ON home.id = away.id;
+
+
+
+WITH home AS (
+  SELECT m.id, m.date, 
+       t.team_long_name AS hometeam, m.home_goal
+  FROM match AS m
+  LEFT JOIN team AS t 
+  ON m.hometeam_id = t.team_api_id),
+-- Declare and set up the away CTE
+away AS (
+  SELECT m.id, m.date, 
+       t.team_long_name AS awayteam, m.away_goal
+  FROM match AS m
+  LEFT JOIN team AS t 
+  ON m.awayteam_id = t.team_api_id)
+-- Select date, home_goal, and away_goal
+SELECT 
+  home.date,
+    home.hometeam,
+    away.awayteam,
+    home.home_goal,
+    away.away_goal
+-- Join away and home on the id column
+FROM home
+INNER JOIN away
+ON home.id = away.id;
+
+
+
+
+
+
+
+
